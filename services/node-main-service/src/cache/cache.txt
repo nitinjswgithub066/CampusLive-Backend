@@ -1,0 +1,17 @@
+# Cache Layer
+
+This folder contains caching-related modules.
+
+Purpose:
+- Redis clients
+- Cache helpers
+- Key builders
+- TTL strategies
+
+Examples:
+- redisClient.js
+- user.cache.js
+- stream.cache.js
+
+Notes:
+Caching is introduced to reduce database load and improve latency.

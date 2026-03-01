@@ -1,0 +1,17 @@
+# Background Jobs
+
+This folder contains asynchronous/background processing logic.
+
+Purpose:
+- Queues
+- Workers
+- Scheduled tasks
+- Email / notifications / cleanup jobs
+
+Examples:
+- email.job.js
+- stream-processing.job.js
+- cron.js
+
+Notes:
+Heavy or delayed work must not block API response cycle.

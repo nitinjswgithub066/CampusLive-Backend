@@ -1,0 +1,17 @@
+# Realtime Layer
+
+This folder contains realtime communication logic.
+
+Purpose:
+- WebSocket setup
+- Socket.IO handlers
+- Live events
+- Presence tracking
+
+Examples:
+- socket.js
+- chat.gateway.js
+- stream.gateway.js
+
+Notes:
+Used for chat, live streams, notifications, typing indicators, etc.
