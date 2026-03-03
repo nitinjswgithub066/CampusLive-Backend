@@ -1,8 +1,8 @@
 const { hashPassword, comparePassword } = require('../../utils/hashPassword');
-const jwt = require('jsonwebtoken');
 const ApiError = require('../../core/ApiError');
 const repo = require('./auth.repository');
 const config = require('../../config/config');
+const { generateAccessToken, generateRefreshToken, hashToken } = require('../../utils/token');
 
 /**
  * Create a new user account
@@ -175,10 +175,10 @@ const createAccount = async ({
 
 /**
  * Login user
- * @param {Object} credentials - Contains identifier (email/phone/username) and password
- * @returns {Promise<Object>} JWT token and user data
+ * @param {Object} credentials - Contains identifier, password, and request metadata
+ * @returns {Promise<Object>} Access token, refresh token, and user data
  */
-const login = async ({ identifier, password }) => {
+const login = async ({ identifier, password, deviceId, ipAddress, userAgent }) => {
     if (!identifier || !password) {
         throw new ApiError(400, 'Identifier and password are required');
     }
@@ -202,15 +202,21 @@ const login = async ({ identifier, password }) => {
         throw new ApiError(401, 'Invalid credentials');
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-        { 
-            id: user.id,
-            role: user.authRole
-        },
-        config.jwt.secret,
-        { expiresIn: config.jwt.expiresIn }
-    );
+    // Generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken();
+    const refreshTokenHash = hashToken(refreshToken);
+
+    // Create session
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await repo.createSession({
+        userId: user.id,
+        refreshTokenHash,
+        deviceId: deviceId || null,
+        ipAddress: ipAddress || null,
+        userAgent: userAgent || null,
+        expiresAt
+    });
 
     // Format identifier values
     const identifierMap = {};
@@ -221,7 +227,8 @@ const login = async ({ identifier, password }) => {
     });
 
     return {
-        token,
+        accessToken,
+        refreshToken,
         user: {
             id: user.id,
             username: identifierMap.username || null,
@@ -232,6 +239,99 @@ const login = async ({ identifier, password }) => {
             isActive: user.isActive
         }
     };
+};
+
+/**
+ * Refresh access token
+ * @param {string} refreshToken - Refresh token
+ * @returns {Promise<Object>} New access token and refresh token
+ */
+const refreshAccessToken = async (refreshToken) => {
+    if (!refreshToken) {
+        throw new ApiError(400, 'Refresh token is required');
+    }
+
+    const refreshTokenHash = hashToken(refreshToken);
+    const session = await repo.findSessionByTokenHash(refreshTokenHash);
+
+    if (!session) {
+        throw new ApiError(401, 'Invalid or expired refresh token');
+    }
+
+    // Check if user is still active
+    if (!session.user.isActive) {
+        throw new ApiError(403, 'Account is inactive');
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken(session.user);
+    const newRefreshToken = generateRefreshToken();
+    const newRefreshTokenHash = hashToken(newRefreshToken);
+
+    // Revoke old session
+    await repo.revokeSession(session.id);
+
+    // Create new session
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await repo.createSession({
+        userId: session.user.id,
+        refreshTokenHash: newRefreshTokenHash,
+        deviceId: session.deviceId,
+        ipAddress: session.ipAddress,
+        userAgent: session.userAgent,
+        expiresAt
+    });
+
+    // Format identifier values
+    const identifierMap = {};
+    if (session.user.identifiers) {
+        session.user.identifiers.forEach(identifier => {
+            if (identifier.type === 'email') identifierMap.email = identifier.value;
+            if (identifier.type === 'phone') identifierMap.mobileNumber = identifier.value;
+            if (identifier.type === 'username') identifierMap.username = identifier.value;
+        });
+    }
+
+    return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        user: {
+            id: session.user.id,
+            username: identifierMap.username || null,
+            email: identifierMap.email || null,
+            mobileNumber: identifierMap.mobileNumber || null,
+            accountType: session.user.accountType,
+            authRole: session.user.authRole,
+            isActive: session.user.isActive
+        }
+    };
+};
+
+/**
+ * Logout user - revoke refresh token
+ * @param {string} refreshToken - Refresh token to revoke
+ * @returns {Promise<void>}
+ */
+const logout = async (refreshToken) => {
+    if (!refreshToken) {
+        return; // Silent success if no token provided
+    }
+
+    const refreshTokenHash = hashToken(refreshToken);
+    const session = await repo.findSessionByTokenHash(refreshTokenHash);
+
+    if (session) {
+        await repo.revokeSession(session.id);
+    }
+};
+
+/**
+ * Logout from all devices - revoke all user sessions
+ * @param {string} userId - User ID
+ * @returns {Promise<void>}
+ */
+const logoutAllDevices = async (userId) => {
+    await repo.revokeAllUserSessions(userId);
 };
 
 /**
@@ -259,5 +359,8 @@ const searchInstitutes = async (searchTerm, limit = 10) => {
 module.exports = {
     login,
     createAccount,
-    searchInstitutes
+    searchInstitutes,
+    refreshAccessToken,
+    logout,
+    logoutAllDevices
 };

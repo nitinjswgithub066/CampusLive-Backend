@@ -15,8 +15,8 @@ const authenticateToken = (req, res, next) => {
         }
 
         // If no token in header, check cookie (for web apps)
-        if (!token && req.cookies && req.cookies.token) {
-            token = req.cookies.token
+        if (!token && req.cookies && req.cookies.accessToken) {
+            token = req.cookies.accessToken
         }
 
         if (!token) {
@@ -27,6 +27,7 @@ const authenticateToken = (req, res, next) => {
 
         req.user = {
             id: decoded.id,
+            role: decoded.role
         }
 
         next()

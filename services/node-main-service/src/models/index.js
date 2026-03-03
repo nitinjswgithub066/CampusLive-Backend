@@ -2,6 +2,7 @@ const Users = require('./users.model');
 const UserIdentifier = require('./userIdentifier.model');
 const UserProfile = require('./userProfile.model');
 const Institute = require('./institute.model');
+const UserSession = require('./userSession.model');
 
 // Define associations
 Users.hasMany(UserIdentifier, {
@@ -36,9 +37,21 @@ UserProfile.belongsTo(Institute, {
     as: 'institute'
 });
 
+Users.hasMany(UserSession, {
+    foreignKey: 'userId',
+    as: 'sessions',
+    onDelete: 'CASCADE'
+});
+
+UserSession.belongsTo(Users, {
+    foreignKey: 'userId',
+    as: 'user'
+});
+
 module.exports = {
     Users,
     UserIdentifier,
     UserProfile,
-    Institute
+    Institute,
+    UserSession
 };

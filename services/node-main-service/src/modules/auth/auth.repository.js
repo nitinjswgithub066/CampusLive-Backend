@@ -1,4 +1,4 @@
-const { Users, UserIdentifier, UserProfile, Institute } = require('../../models');
+const { Users, UserIdentifier, UserProfile, Institute, UserSession } = require('../../models');
 const { Op } = require('sequelize');
 const sequelize = require('../../config/sequelize');
 const { generateProfileId, generateStreamingId } = require('../../utils/generateId');
@@ -260,6 +260,97 @@ const createInstitute = async (instituteData) => {
   return await Institute.create(instituteData);
 };
 
+/**
+ * Create a user session
+ * @param {Object} sessionData - Session data (userId, refreshTokenHash, deviceId, ipAddress, userAgent, expiresAt)
+ * @returns {Promise<Object>} Created session
+ */
+const createSession = async (sessionData) => {
+  return await UserSession.create(sessionData);
+};
+
+/**
+ * Find session by refresh token hash
+ * @param {string} refreshTokenHash - Hashed refresh token
+ * @returns {Promise<Object|null>} Session or null
+ */
+const findSessionByTokenHash = async (refreshTokenHash) => {
+  return await UserSession.findOne({
+    where: {
+      refreshTokenHash,
+      revokedAt: null,
+      expiresAt: {
+        [Op.gt]: new Date()
+      }
+    },
+    include: [{
+      model: Users,
+      as: 'user',
+      include: [{
+        model: UserIdentifier,
+        as: 'identifiers'
+      }]
+    }]
+  });
+};
+
+/**
+ * Revoke a session
+ * @param {string} sessionId - Session ID
+ * @returns {Promise<void>}
+ */
+const revokeSession = async (sessionId) => {
+  await UserSession.update(
+    { revokedAt: new Date() },
+    { where: { id: sessionId } }
+  );
+};
+
+/**
+ * Revoke all user sessions
+ * @param {string} userId - User ID
+ * @returns {Promise<void>}
+ */
+const revokeAllUserSessions = async (userId) => {
+  await UserSession.update(
+    { revokedAt: new Date() },
+    { where: { userId, revokedAt: null } }
+  );
+};
+
+/**
+ * Delete expired sessions
+ * @returns {Promise<number>} Number of deleted sessions
+ */
+const deleteExpiredSessions = async () => {
+  const result = await UserSession.destroy({
+    where: {
+      expiresAt: {
+        [Op.lt]: new Date()
+      }
+    }
+  });
+  return result;
+};
+
+/**
+ * Get active sessions for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Array>} Active sessions
+ */
+const getUserActiveSessions = async (userId) => {
+  return await UserSession.findAll({
+    where: {
+      userId,
+      revokedAt: null,
+      expiresAt: {
+        [Op.gt]: new Date()
+      }
+    },
+    order: [['created_at', 'DESC']]
+  });
+};
+
 module.exports = {
   findByIdentifier,
   findIdentifierByTypeAndValue,
@@ -270,4 +361,10 @@ module.exports = {
   findInstituteByName,
   searchInstitutes,
   createInstitute,
+  createSession,
+  findSessionByTokenHash,
+  revokeSession,
+  revokeAllUserSessions,
+  deleteExpiredSessions,
+  getUserActiveSessions,
 };
