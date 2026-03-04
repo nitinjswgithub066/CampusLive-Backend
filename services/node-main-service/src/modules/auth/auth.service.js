@@ -8,7 +8,7 @@ const { generateAccessToken, generateRefreshToken, hashToken } = require('../../
  * Create a new user account
  * Registration flow data:
  * - Page 1: fullName, dob, gender
- * - Page 2: accountType (student/professional/businessman), instituteName (if student)
+ * - Page 2: accountType (student/professional/business), instituteId (if student)
  * - Page 3: mobileNumber, email, invitationCode (optional)
  * - Page 4: username, password
  * @param {Object} userData - All registration data
@@ -21,7 +21,8 @@ const createAccount = async ({
     gender,
     // Account type and institute (Page 2)
     accountType,
-    instituteName,
+    instituteId,
+    instituteName, // Kept for backward compatibility
     // Contact information (Page 3)
     email, 
     mobileNumber,
@@ -95,22 +96,31 @@ const createAccount = async ({
 
     // === Handle institute (for students) ===
     
-    let instituteId = null;
+    let finalInstituteId = null;
     
-    if (accountType === 'student' && instituteName) {
-        // Try to find existing institute
-        let institute = await repo.findInstituteByName(instituteName);
-        
-        // If not found, you might want to create it or throw error
-        // For now, we'll just use the ID if found
-        if (institute) {
-            instituteId = institute.id;
+    if (accountType === 'student') {
+        // Institute is mandatory for students
+        if (!instituteId && !instituteName) {
+            throw new ApiError(400, 'Institute selection is required for students');
         }
-        // Optionally: Create new institute if not found
-        // else {
-        //     institute = await repo.createInstitute({ name: instituteName });
-        //     instituteId = institute.id;
-        // }
+        
+        let institute = null;
+        
+        // Prefer instituteId over instituteName
+        if (instituteId) {
+            institute = await repo.findInstituteById(instituteId);
+            if (!institute) {
+                throw new ApiError(400, 'Selected institute not found. Please select a valid institute from the list');
+            }
+        } else if (instituteName) {
+            // Fallback to name search
+            institute = await repo.findInstituteByName(instituteName);
+            if (!institute) {
+                throw new ApiError(400, 'Selected institute not found. Please select a valid institute from the list');
+            }
+        }
+        
+        finalInstituteId = institute.id;
     }
 
     // === Hash password ===
@@ -132,7 +142,7 @@ const createAccount = async ({
         fullName,
         dob,
         gender,
-        instituteId,
+        instituteId: finalInstituteId,
         // Optional
         invitationCode
     });
@@ -356,10 +366,28 @@ const searchInstitutes = async (searchTerm, limit = 10) => {
     }));
 };
 
+/**
+ * Get all institutes
+ * @param {number} limit - Maximum results to return
+ * @returns {Promise<Array>} List of all institutes
+ */
+const getAllInstitutes = async (limit = 100) => {
+    const institutes = await repo.getAllInstitutes(limit);
+    
+    return institutes.map(inst => ({
+        id: inst.id,
+        name: inst.name,
+        city: inst.city,
+        state: inst.state,
+        country: inst.country
+    }));
+};
+
 module.exports = {
     login,
     createAccount,
     searchInstitutes,
+    getAllInstitutes,
     refreshAccessToken,
     logout,
     logoutAllDevices

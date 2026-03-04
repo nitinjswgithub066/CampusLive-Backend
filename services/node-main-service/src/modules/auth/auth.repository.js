@@ -219,7 +219,16 @@ const createUser = async (userData) => {
 };
 
 /**
- * Find institute by name (case-insensitive)
+ * Find institute by ID
+ * @param {string} id - Institute ID
+ * @returns {Promise<Object|null>}
+ */
+const findInstituteById = async (id) => {
+  return await Institute.findByPk(id);
+};
+
+/**
+ * Find institute by name (exact match, case-insensitive)
  * @param {string} name - Institute name
  * @returns {Promise<Object|null>}
  */
@@ -246,6 +255,18 @@ const searchInstitutes = async (searchTerm, limit = 10) => {
         [Op.like]: `%${searchTerm}%`
       }
     },
+    limit,
+    order: [['name', 'ASC']]
+  });
+};
+
+/**
+ * Get all institutes
+ * @param {number} limit - Maximum results to return
+ * @returns {Promise<Array>}
+ */
+const getAllInstitutes = async (limit = 100) => {
+  return await Institute.findAll({
     limit,
     order: [['name', 'ASC']]
   });
@@ -358,8 +379,10 @@ module.exports = {
   findByUsername,
   findByPhone,
   createUser,
+  findInstituteById,
   findInstituteByName,
   searchInstitutes,
+  getAllInstitutes,
   createInstitute,
   createSession,
   findSessionByTokenHash,

@@ -9,7 +9,7 @@ const authService = require('./auth.service')
  * Register a new user account
  * Accepts data from multi-step registration flow:
  * - Page 1: fullName, dob, gender
- * - Page 2: accountType, instituteName (if student)
+ * - Page 2: accountType, instituteId (if student)
  * - Page 3: email, mobileNumber, invitationCode (optional)
  * - Page 4: username, password
  */
@@ -21,7 +21,8 @@ const register = asyncHandler(async (req, res) => {
         gender,
         // Account type (Page 2)
         accountType,
-        instituteName,
+        instituteId,
+        instituteName, // Kept for backward compatibility
         // Contact info (Page 3)
         email, 
         mobileNumber,
@@ -36,6 +37,7 @@ const register = asyncHandler(async (req, res) => {
         dob,
         gender,
         accountType,
+        instituteId,
         instituteName,
         email, 
         mobileNumber,
@@ -207,6 +209,24 @@ const searchInstitutes = asyncHandler(async (req, res) => {
     })
 })
 
+/**
+ * Get all institutes
+ * Query params: ?limit=<optional_limit>
+ */
+const getAllInstitutes = asyncHandler(async (req, res) => {
+    const { limit } = req.query
+
+    const results = await authService.getAllInstitutes(
+        limit ? parseInt(limit) : 100
+    )
+
+    res.json({
+        success: true,
+        data: results,
+        count: results.length
+    })
+})
+
 
 module.exports = {
     register,
@@ -214,5 +234,6 @@ module.exports = {
     refreshToken,
     logout,
     logoutAllDevices,
-    searchInstitutes
+    searchInstitutes,
+    getAllInstitutes
 }

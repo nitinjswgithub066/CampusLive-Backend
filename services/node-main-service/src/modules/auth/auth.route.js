@@ -18,6 +18,8 @@ router.post('/auth/logout', authController.logout)
 
 router.post('/auth/logout-all', authenticateToken, authController.logoutAllDevices)
 
+// Institute endpoints (for student registration)
+router.get('/auth/institutes', authController.getAllInstitutes)
 router.get('/auth/institutes/search', authController.searchInstitutes)
 
 module.exports = router
